@@ -1,4 +1,10 @@
+import 'dart:convert';
+
+import 'package:awesome_dialog/awesome_dialog.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:my_app/secondpage.dart';
 
 void main() {
   runApp(const MyApp());
@@ -32,11 +38,68 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   int _counter = 0;
+  String location = 'Belum Mendapatkan Lat dan long, Silahkan tekan button';
+  String address = 'Mencari lokasi...';
+  var valLoc = [];
+  var dataLokasi = {};
+  String url = "http://10.0.2.2:8000/api/";
 
   void _incrementCounter() {
     setState(() {
       _counter++;
     });
+  }
+
+  //getLongLAT
+  Future<Position> _getGeoLocationPosition() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    //location service not enabled, don't continue
+    if (!serviceEnabled) {
+      await Geolocator.openLocationSettings();
+      return Future.error('Location service Not Enabled');
+    }
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        return Future.error('Location permission denied');
+      }
+    }
+    //permission denied forever
+    if (permission == LocationPermission.deniedForever) {
+      return Future.error(
+        'Location permission denied forever, we cannot access',
+      );
+    }
+    //continue accessing the position of device
+    return await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+  }
+
+  void simpanLokasi() async {
+    Dio dio = Dio();
+    var data = {'longitude': valLoc[0], 'latitude': valLoc[0]};
+    var response = await dio
+        .post('${url}simpanlokasi', data: data)
+        .then((value) => AwesomeDialog(
+              context: context,
+              animType: AnimType.scale,
+              dialogType: DialogType.success,
+              title: 'Berhasil ',
+              desc: 'Berhasil simpan lokasi anda!!!',
+              btnOkOnPress: () {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => HalamanDua(
+                              data: dataLokasi,
+                              title: 'data dari halaman 1',
+                            )));
+              },
+            )..show());
   }
 
   @override
@@ -146,7 +209,18 @@ class _MyHomePageState extends State<MyHomePage> {
                               child: Row(
                                 children: [
                                   GestureDetector(
-                                    onTap: (() => print('hehhe')),
+                                    onTap: (() async {
+                                      await _getGeoLocationPosition()
+                                          .then((value) {
+                                        setState(() {
+                                          valLoc = [
+                                            value.latitude,
+                                            value.longitude
+                                          ];
+                                        });
+                                        simpanLokasi();
+                                      });
+                                    }),
                                     child: Container(
                                       decoration: BoxDecoration(
                                           color: Colors.white,
@@ -166,20 +240,42 @@ class _MyHomePageState extends State<MyHomePage> {
                                   SizedBox(
                                     width: 10,
                                   ),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.all(
-                                            Radius.circular(10))),
-                                    padding: EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 15),
-                                    child: Center(
-                                        child: Row(
-                                      children: [
-                                        Icon(Icons.app_blocking),
-                                        Text('Request Attendance'),
-                                      ],
-                                    )),
+                                  GestureDetector(
+                                    onTap: () async {
+                                      Dio dio = Dio();
+                                      var res = await dio
+                                          .get('${url}getlokasi')
+                                          .then((value) {
+                                        setState(() {
+                                          dataLokasi = value.data;
+                                        });
+                                      }).then((value) {
+                                        Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                                builder: (context) =>
+                                                    HalamanDua(
+                                                      title:
+                                                          'data dari halaman 1',
+                                                      data: dataLokasi,
+                                                    )));
+                                      });
+                                    },
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.all(
+                                              Radius.circular(10))),
+                                      padding: EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 15),
+                                      child: Center(
+                                          child: Row(
+                                        children: [
+                                          Icon(Icons.app_blocking),
+                                          Text('Request Datas'),
+                                        ],
+                                      )),
+                                    ),
                                   ),
                                   SizedBox(
                                     width: 10,
